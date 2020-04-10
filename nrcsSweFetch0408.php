@@ -1,3 +1,4 @@
+Hi Michelle
 #!/usr/bin/php
 <?php
 // At start of script
