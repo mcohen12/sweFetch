@@ -17,8 +17,8 @@ else{
 date_default_timezone_set('UTC');
 $today = date('Y-m-d H:i:s'); //2020-mm-dd
 $yymmddhhii = date('ymdHi');
-$yesterday = date('Y-m-d',strtotime('1 day ago'));
-$monthAgo = date('Y-m-d H:i:s',strtotime('1 month ago'));
+$yesterday = date('Y-m-d H:i:s',strtotime('1 day ago'));
+//$monthAgo = date('Y-m-d H:i:s',strtotime('1 month ago'));
 //create client object
 $soapclient = new SoapClient('http://www.wcc.nrcs.usda.gov/awdbWebService/services?WSDL', array('connection_timeout'=>120, 'exceptions' => 0));
 
@@ -33,9 +33,7 @@ for($i=0;$i<count($stnResp->return);$i++){
  $stnTriplet = $stnResp->return[$i]; //local vars bc i don't remember how efficient php is
  $metaData = $metaDataMultiple->return[$i];
  if ($metaData->stationTriplet == $stnTriplet){ //sanity check 
-  if($stnTriplet == "953:AK:SNTL") //east Palmer doesn't have shefId
-   $stnObj = (object)['stationTriplet' => $stnTriplet, 'timeZone' => $metaData->stationDataTimeZone, 'shefId' => 'EEEEE', 'name' => $metaData->name];
-  elseif(isset($metaData->shefId))
+  if(isset($metaData->shefId))
    $stnObj = (object)['stationTriplet' => $stnTriplet, 'timeZone' => $metaData->stationDataTimeZone, 'shefId' => $metaData->shefId, 'name' => $metaData->name];
   else
    print($stnTriplet." ".$metaData->name." has no shefId.\n");
@@ -56,7 +54,7 @@ foreach($stnObjects as $stn){
    if($thing->properties->stnTriplet == $stn->stationTriplet){
     $revisedBeginDate = $thing->properties->date; //get most recent date we have data
     if ($revisedBeginDate == null){
-     $revisedBeginDate = $monthAgo;
+     $revisedBeginDate = $yesterday;
     }
    }
   }
@@ -66,13 +64,13 @@ foreach($stnObjects as $stn){
  
  //convert dates to local standard time
  $diffFromUtc = (float)$stn->timeZone;
- $revisedBeginDate = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($revisedBeginDate)));
+ $revisedBeginDateLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($revisedBeginDate)));
  $todayLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($today)));
- $monthAgoLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($monthAgo)));
+ $yesterdayLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($yesterday)));
 
 //beginDate is the earliest date to get data for... insertOrUpdateBeginDate will set it to a later date.
-// So I guess set beginDate to a month ago? 
- $precReq = array('stationTriplets'=>$stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $monthAgoLocal, 'endDate' => $todayLocal, 'insertOrUpdateBeginDate' => $revisedBeginDate, 'filter' => 'ALL', 'unitSystem'=>'ENGLISH');
+// Set beginDate to yesterday 
+ $precReq = array('stationTriplets'=>$stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $yesterdayLocal, 'endDate' => $todayLocal, 'insertOrUpdateBeginDate' => $revisedBeginDateLocal, 'filter' => 'ALL', 'unitSystem'=>'ENGLISH');
  $precResp = $soapclient->getInstantaneousDataInsertedOrUpdatedSince($precReq);
  print_r($stn->stationTriplet." ");
  if (isset($precResp->return->values)){
@@ -80,8 +78,11 @@ foreach($stnObjects as $stn){
    if (isset($ob->value)){
   //convert to Z time
     $shefDate = date('ymdHi',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->time)));
-    $shefString = ".A ".$stn->shefId." ".substr($shefDate,0,6)." Z DH".substr($shefDate,6,4)."/DC".$yymmddhhii."/PCH?? ".$ob->value."\n";
-    fwrite($shefData, $shefString);
+    //make sure this is actually new data... nrcs web service seems to give extra hours
+    if (strtotime($shefDate) > strtotime($revisedBeginDate)){
+     $shefString = ".A ".$stn->shefId." ".substr($shefDate,0,6)." Z DH".substr($shefDate,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
+     fwrite($shefData, $shefString);
+    }
    }
    else {
     print("not set...");
