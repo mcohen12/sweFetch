@@ -33,7 +33,8 @@ for($i=0;$i<count($stnResp->return);$i++){
  $stnTriplet = $stnResp->return[$i]; //local vars bc i don't remember how efficient php is
  $metaData = $metaDataMultiple->return[$i];
  if ($metaData->stationTriplet == $stnTriplet){ //sanity check 
-  if(isset($metaData->shefId))
+  //if(isset($metaData->shefId))
+  if(!(empty($metaData->shefId)))
    $stnObj = (object)['stationTriplet' => $stnTriplet, 'timeZone' => $metaData->stationDataTimeZone, 'shefId' => $metaData->shefId, 'name' => $metaData->name];
   else
    print($stnTriplet." ".$metaData->name." has no shefId.\n");
@@ -82,7 +83,7 @@ foreach($stnObjects as $stn){
     $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
     if (strtotime($shefDate) > strtotime($revisedBeginDate)){
-     $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDate,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
+     $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
      fwrite($shefData, $shefString);
     }
     else {
