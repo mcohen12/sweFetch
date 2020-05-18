@@ -77,11 +77,16 @@ foreach($stnObjects as $stn){
   foreach($precResp->return->values as $ob){
    if (isset($ob->value)){
   //convert to Z time
-    $shefDate = date('ymdHi',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->time)));
+    //$shefDate = date('ymdHi',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->time)));
+    $shefDate = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->time)));
+    $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
     if (strtotime($shefDate) > strtotime($revisedBeginDate)){
-     $shefString = ".A ".$stn->shefId." ".substr($shefDate,0,6)." Z DH".substr($shefDate,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
+     $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDate,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
      fwrite($shefData, $shefString);
+    }
+    else {
+     print("nope...".strtotime($shefDate)." is not greater than ".strtotime($revisedBeginDate)."\n");
     }
    }
    else {
