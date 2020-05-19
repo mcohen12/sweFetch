@@ -41,10 +41,12 @@ for($i=0;$i<count($stnResp->return);$i++){
 }
 
 //see if a most recent dates file exists, if not this is the first time you're running script
-if (!(file_exists("mostRecentTP.json")))
+if (!(is_dir('../etc')))
+ mkdir('../etc');
+if (!(file_exists('../etc/mostRecentTP.json')))
  $json = null;
 else{
- $jsonFile = file_get_contents('mostRecentTP.json');
+ $jsonFile = file_get_contents('../etc/mostRecentTP.json');
  $json = json_decode($jsonFile);
 }
 
@@ -53,7 +55,10 @@ $mostRecent = new stdClass();
 $mostRecent->type = "FeatureCollection";
 $mostRecent->features = array();
 
-$shefData = fopen('tippingBucketShef.txt','w');
+if(!(is_dir('../data')))
+ mkdir('../data');
+
+$shefData = fopen('../data/tippingBucketShef.txt','w');
 fwrite($shefData,"245...is this supposed to be a random number?\nSRAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
 fwrite($shefData,"Here's a comment about something...\n");
 
@@ -61,7 +66,7 @@ $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
  if($json){
   foreach($json->features as $thing){
-   if($thing->properties->stnTriplet == $stn->stationTriplet){
+   if($thing->properties->stationTriplet == $stn->stationTriplet){
     $revisedBeginDate = $thing->properties->date; //get most recent date we have data
     if ($revisedBeginDate == null){
      $revisedBeginDate = $yesterday;
@@ -109,7 +114,8 @@ foreach($stnObjects as $stn){
  $point->type = "Feature";
  $point->properties = new stdClass();
  $point->properties->name = $stn->name;
- $point->properties->stnTriplet = $stn->stationTriplet;
+ $point->properties->stationTriplet = $stn->stationTriplet;
+ $point->properties->shefId = $stn->shefId;
  $endTime = null;
  if(isset($precResp->return->values)){ //make sure we grab the last time with a value
   $i=count($precResp->return->values)-1;
@@ -136,7 +142,7 @@ foreach($stnObjects as $stn){
 fclose($shefData);
 
 
-file_put_contents("mostRecentTP.json",json_encode($mostRecent));
+file_put_contents('../etc/mostRecentTP.json',json_encode($mostRecent));
 exit("done with script\n");
 
 ?>
