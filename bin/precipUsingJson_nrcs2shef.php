@@ -1,5 +1,6 @@
 #!/bin/php
 <?php
+//return is an object if it's only for one hour
 //use NRCS web services to grab tipping bucket data from snotels. 
 //see https://www.wcc.nrcs.usda/web_service/awdb_web_service_landing.htm
 //SNTL = Snotel and SCAN
@@ -9,6 +10,7 @@
 
 
 //getInstantaneous only for snotel or scan data
+//getInstantaneous not working... use getHourly
 //grab all the obs in their native timezone, then convert to UTC at end before printing em out?
 //create json of most recent times... 
 
@@ -16,7 +18,6 @@ date_default_timezone_set('UTC');
 $today = date('Y-m-d H:i:s'); //2020-mm-dd
 $yymmddhhii = date('ymdHi');
 $yesterday = date('Y-m-d H:i:s',strtotime('1 day ago'));
-//$monthAgo = date('Y-m-d H:i:s',strtotime('1 month ago'));
 //create client object
 $soapclient = new SoapClient('http://www.wcc.nrcs.usda.gov/awdbWebService/services?WSDL', array('connection_timeout'=>120, 'exceptions' => 0));
 
@@ -59,49 +60,49 @@ if(!(is_dir('../data')))
  mkdir('../data');
 
 $shefData = fopen('../data/tippingBucketShef.txt','w');
-fwrite($shefData,"245...is this supposed to be a random number?\nSRAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
-fwrite($shefData,"Here's a comment about something...\n");
+//fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
+fwrite($shefData,"SRAK58 PACR ".substr($yymmddhhii,4,6)."\nACRRR3ACR\n");
+fwrite($shefData,"\n:APRFC data ingested via local csv process\n");
 
 $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
  if($json){
   foreach($json->features as $thing){
    if($thing->properties->stationTriplet == $stn->stationTriplet){
-    $revisedBeginDate = $thing->properties->date; //get most recent date we have data
-    if ($revisedBeginDate == null){
-     $revisedBeginDate = $yesterday;
+    $beginDate = $thing->properties->date; //get most recent date we have data
+    if ($beginDate == null){
+     $beginDate = $yesterday;
     }
    }
   }
  }
  else
-  $revisedBeginDate = $yesterday;
+  $beginDate = $yesterday;
  
  //convert dates to local standard time
  $diffFromUtc = (float)$stn->timeZone;
- $revisedBeginDateLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($revisedBeginDate)));
- $todayLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($today)));
- $yesterdayLocal = date('Y-m-d H:i:s',strtotime('+'.$diffFromUtc.' hours',strtotime($yesterday)));
-
-//beginDate is the earliest date to get data for... insertOrUpdateBeginDate will set it to a later date.
-// Set beginDate to yesterday 
+ $beginDateLocal = date('Y-m-d H:i',strtotime('+'.$diffFromUtc.' hours',strtotime($beginDate)));
+ $todayLocal = date('Y-m-d H:i',strtotime('+'.$diffFromUtc.' hours',strtotime($today)));
+ 
 //ordinal 2 for tipping bucket
- $precReq = array('stationTriplets'=>$stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $yesterdayLocal, 'endDate' => $todayLocal, 'insertOrUpdateBeginDate' => $revisedBeginDateLocal, 'filter' => 'ALL', 'unitSystem'=>'ENGLISH');
- $precResp = $soapclient->getInstantaneousDataInsertedOrUpdatedSince($precReq);
+ print("beginDate is ".$beginDateLocal." and endDate is ".$todayLocal."\n");
+ $precReq = array('stationTriplets' => $stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $beginDateLocal, 'endDate' => $todayLocal);
+ $precResp = $soapclient->getHourlyData($precReq);
  print_r($stn->stationTriplet." ");
  if (isset($precResp->return->values)){
+  print_r($precResp->return);
   foreach($precResp->return->values as $ob){
    if (isset($ob->value)){
   //convert to Z time
-    $shefDate = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->time)));
+    $shefDate = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->dateTime)));
     $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
-    if (strtotime($shefDate) > strtotime($revisedBeginDate)){
+    if (strtotime($shefDate) > strtotime($beginDate)){
      $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
      fwrite($shefData, $shefString);
     }
     else {
-     print("nope...".strtotime($shefDate)." is not greater than ".strtotime($revisedBeginDate)."\n");
+     print("nope...".strtotime($shefDate)." is not greater than ".strtotime($beginDate)."\n");
     }
    }
    else {
@@ -123,7 +124,7 @@ foreach($stnObjects as $stn){
   while(!($foundValue) && $i>-1){
    if(isset($precResp->return->values[$i]->value)){
     $foundValue = true;
-    $endTime = $precResp->return->values[$i]->time;
+    $endTime = $precResp->return->values[$i]->dateTime;
    }
    $i--;
   }
