@@ -13,6 +13,13 @@
 //grab all the obs in their native timezone, then convert to UTC at end before printing em out?
 //create json of most recent times... 
 
+//so script can run anywhere 
+chdir(__DIR__);
+chdir("../");
+define("APP_DIR",getcwd());
+define("DATA_DIR",APP_DIR."/data/");
+define("ETC_DIR",APP_DIR."/etc/");
+define("LOG_DIR",APP_DIR."/log/");
 date_default_timezone_set('UTC');
 $today = date('Y-m-d H:i:s'); //2020-mm-dd
 $yymmddhhii = date('ymdHi');
@@ -41,12 +48,10 @@ for($i=0;$i<count($stnResp->return);$i++){
 }
 
 //see if a most recent dates file exists, if not this is the first time you're running script
-if (!(is_dir('../etc')))
- mkdir('../etc');
-if (!(file_exists('../etc/mostRecentTP.json')))
+if (!(file_exists(ETC_DIR.'mostRecentTP.json')))
  $json = null;
 else{
- $jsonFile = file_get_contents('../etc/mostRecentTP.json');
+ $jsonFile = file_get_contents(ETC_DIR.'mostRecentTP.json');
  $json = json_decode($jsonFile);
 }
 
@@ -55,10 +60,10 @@ $mostRecent = new stdClass();
 $mostRecent->type = "FeatureCollection";
 $mostRecent->features = array();
 
-if(!(is_dir('../data')))
- mkdir('../data');
+//if(!(is_dir('../data')))
+ //mkdir('../data');
 
-$shefData = fopen('../data/tippingBucketShef.txt','w');
+$shefData = fopen(DATA_DIR.'tippingBucketShef.txt','w');
 //fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
 fwrite($shefData,"SRAK58 PACR ".substr($yymmddhhii,4,6)."\nACRRR3ACR\n");
 fwrite($shefData,"\n:APRFC SNOTEL web service ingest from NRCS via local process\n");
@@ -138,11 +143,11 @@ foreach($stnObjects as $stn){
 
 fclose($shefData);
 $forAwips = '/usr/local/apps/scripts/bcj/hydroTools/TO_LDAD/tippingBucket_sheffile.txt';
-$shefData = '../data/tippingBucketShef.txt';
+$shefData = DATA_DIR.'tippingBucketShef.txt';
 
 copy($shefData,$forAwips);
 
 
-file_put_contents('../etc/mostRecentTP.json',json_encode($mostRecent));
+file_put_contents(ETC_DIR.'mostRecentTP.json',json_encode($mostRecent));
 
 ?>
