@@ -1,6 +1,7 @@
 #!/bin/php
+
 <?php
-//return is an object if it's only for one hour
+
 //use NRCS web services to grab tipping bucket data from snotels. 
 //see https://www.wcc.nrcs.usda/web_service/awdb_web_service_landing.htm
 //SNTL = Snotel and SCAN
@@ -9,8 +10,6 @@
 //then write to tippingBucketShef.txt
 
 
-//getInstantaneous only for snotel or scan data
-//getInstantaneous not working... use getHourly
 //grab all the obs in their native timezone, then convert to UTC at end before printing em out?
 //create json of most recent times... 
 
@@ -62,7 +61,7 @@ if(!(is_dir('../data')))
 $shefData = fopen('../data/tippingBucketShef.txt','w');
 //fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
 fwrite($shefData,"SRAK58 PACR ".substr($yymmddhhii,4,6)."\nACRRR3ACR\n");
-fwrite($shefData,"\n:APRFC data ingested via local csv process\n");
+fwrite($shefData,"\n:APRFC SNOTEL web service ingest from NRCS via local process\n");
 
 $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
@@ -85,28 +84,26 @@ foreach($stnObjects as $stn){
  $todayLocal = date('Y-m-d H:i',strtotime('+'.$diffFromUtc.' hours',strtotime($today)));
  
 //ordinal 2 for tipping bucket
- print("beginDate is ".$beginDateLocal." and endDate is ".$todayLocal."\n");
  $precReq = array('stationTriplets' => $stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $beginDateLocal, 'endDate' => $todayLocal);
  $precResp = $soapclient->getHourlyData($precReq);
- print_r($stn->stationTriplet." ");
+ //print_r($stn->stationTriplet." ");
  if (isset($precResp->return->values)){
-  print_r($precResp->return);
+  if (!(is_array($precResp->return->values))){ //cast to array if only one returned
+   $localObj = (object)['value' => $precResp->return->values->value, 'dateTime' => $precResp->return->values->dateTime];
+   $precResp->return->values = array();
+   array_push($precResp->return->values,$localObj);
+  }
+   
   foreach($precResp->return->values as $ob){
    if (isset($ob->value)){
-  //convert to Z time
+    //convert to Z time
     $shefDate = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->dateTime)));
     $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
     if (strtotime($shefDate) > strtotime($beginDate)){
-     $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR2 ".$ob->value."\n";
+     $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR3 ".$ob->value."\n";
      fwrite($shefData, $shefString);
     }
-    else {
-     print("nope...".strtotime($shefDate)." is not greater than ".strtotime($beginDate)."\n");
-    }
-   }
-   else {
-    print("not set...");
    }
   }
  }
@@ -136,14 +133,16 @@ foreach($stnObjects as $stn){
  else
   $point->properties->date = null;
  $mostRecent->features[] = $point;
- print_r("the last time is ".$point->properties->date."\n");
  //make sure we don't replace a valid time in mostRecent with null... will need to compare epoch time of last ob grabbed with time in mostRecent json 
 }
 
 fclose($shefData);
+$forAwips = '/usr/local/apps/scripts/bcj/hydroTools/TO_LDAD/tippingBucket_sheffile.txt';
+$shefData = '../data/tippingBucketShef.txt';
+
+copy($shefData,$forAwips);
 
 
 file_put_contents('../etc/mostRecentTP.json',json_encode($mostRecent));
-exit("done with script\n");
 
 ?>
