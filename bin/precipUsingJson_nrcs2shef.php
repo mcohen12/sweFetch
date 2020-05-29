@@ -66,7 +66,8 @@ $mostRecent->features = array();
 $shefData = fopen(DATA_DIR.'tippingBucketShef.txt','w');
 //fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
 fwrite($shefData,"SRAK58 PACR ".substr($yymmddhhii,4,6)."\nACRRR3ACR\n");
-fwrite($shefData,"\n:APRFC SNOTEL web service ingest from NRCS via local process\n");
+fwrite($shefData,"DATA REPORT FROM CSV INGEST \n\n");
+fwrite($shefData,":APRFC SNOTEL web service ingest from NRCS via local process\n");
 
 $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
