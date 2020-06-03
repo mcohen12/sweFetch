@@ -24,6 +24,7 @@ date_default_timezone_set('UTC');
 $today = date('Y-m-d H:i:s'); //2020-mm-dd
 $yymmddhhii = date('ymdHi');
 $yesterday = date('Y-m-d H:i:s',strtotime('1 day ago'));
+$newData = false; //flag to determine whether to send new file
 //create client object
 $soapclient = new SoapClient('http://www.wcc.nrcs.usda.gov/awdbWebService/services?WSDL', array('connection_timeout'=>120, 'exceptions' => 0));
 
@@ -60,8 +61,6 @@ $mostRecent = new stdClass();
 $mostRecent->type = "FeatureCollection";
 $mostRecent->features = array();
 
-//if(!(is_dir('../data')))
- //mkdir('../data');
 
 $shefData = fopen(DATA_DIR.'tippingBucketShef.txt','w');
 //fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
@@ -107,6 +106,7 @@ foreach($stnObjects as $stn){
     $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
     if (strtotime($shefDate) > strtotime($beginDate)){
+     $newData = true; //we have at least one new piece of data
      $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR3 ".$ob->value."\n";
      fwrite($shefData, $shefString);
     }
@@ -146,8 +146,9 @@ fclose($shefData);
 $forAwips = '/usr/local/apps/scripts/bcj/hydroTools/TO_LDAD/tippingBucket_sheffile.txt';
 $shefData = DATA_DIR.'tippingBucketShef.txt';
 
-copy($shefData,$forAwips);
-
+if($newData)
+ copy($shefData,$forAwips);
+//don't send over a blank file
 
 file_put_contents(ETC_DIR.'mostRecentTP.json',json_encode($mostRecent));
 
