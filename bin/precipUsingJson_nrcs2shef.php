@@ -70,6 +70,7 @@ fwrite($shefData,":APRFC SNOTEL web service ingest from NRCS via local process\n
 
 $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
+ $beginDate = $yesterday; //this is for the case that ob is brand new, and not in the most recent doc, or there is no json doc
  if($json){
   foreach($json->features as $thing){
    if($thing->properties->stationTriplet == $stn->stationTriplet){
@@ -80,8 +81,6 @@ foreach($stnObjects as $stn){
    }
   }
  }
- else
-  $beginDate = $yesterday;
  
  //convert dates to local standard time
  $diffFromUtc = (float)$stn->timeZone;
@@ -131,13 +130,17 @@ foreach($stnObjects as $stn){
    }
    $i--;
   }
-  if(!($foundValue))
-   $point->properties->date = null;
+  if(!($foundValue)){
+   $point->properties->date = $beginDate; //if we don't get a new value, just set date to date that was already in the json
+   //$point->properties->date = null;
+  }
   else
    $point->properties->date = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($endTime)));
  }
- else
-  $point->properties->date = null;
+ else{ //so that we don't set date to null if there just wasn't any new data in this run
+  $point->properties->date = $beginDate; 
+  //$point->properties->date = null;
+ }
  $mostRecent->features[] = $point;
  //make sure we don't replace a valid time in mostRecent with null... will need to compare epoch time of last ob grabbed with time in mostRecent json 
 }
