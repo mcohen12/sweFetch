@@ -1,0 +1,5 @@
+SRAK58 PACR 271540
+ACRRR3ACR
+DATA REPORT FROM CSV INGEST 
+
+:APRFC SNOTEL web service ingest from NRCS via local process

@@ -31,26 +31,8 @@ $soapclient = new SoapClient('http://www.wcc.nrcs.usda.gov/awdbWebService/servic
 //SNTL is snotel... only have SNTL for AK... there is SNOW for AK and BC... not sure what there is for YT
 $getStnsParams = array('stateCds' => array('AK','BC','YT'), 'networkCds' =>'SNTL', 'logicalAnd' => true, 'elementCd' => 'PREC', 'ordinals'=>'2'); //this gives the station triplets of the stations that are SNTL, and have precipitation...
 $stnResp = $soapclient->getStations($getStnsParams);
-if(is_soap_fault($stnResp)){
- print("error connecting to server for getStations. Retrying...\n");
- sleep(1);
- $stnResp = $soapclient->getStations($getStnsParams);
- if(is_soap_fault($stnResp)){
-  print("two errors in a row getStations. Exiting.\n");
-  exit;
- }
-}
 $getMetaParams = array('stationTriplets' => $stnResp->return);
 $metaDataMultiple = $soapclient->getStationMetadataMultiple($getMetaParams);
-if(is_soap_fault($metaDataMultiple)){
- print("error connecting to server for getStationMetadataMultiple. Retrying...\n");
- sleep(1);
- $metaDataMultiple = $soapclient->getStationMetadataMultiple($getMetaParams);
- if(is_soap_fault($metaDataMultiple)){
-  print("two errors in a row getStationMetaDataMultiple. Exiting.\n");
-  exit;
- }
-}
 $stnObjects = array();
 //throwing out stations that don't have ShefId... pretty sure this is only Kodiak, which was discontinued in the 80s
 for($i=0;$i<count($stnResp->return);$i++){
@@ -60,7 +42,7 @@ for($i=0;$i<count($stnResp->return);$i++){
   if(!(empty($metaData->shefId)))
    $stnObj = (object)['stationTriplet' => $stnTriplet, 'timeZone' => $metaData->stationDataTimeZone, 'shefId' => $metaData->shefId, 'name' => $metaData->name];
   else
-   print($stnTriplet." ".$metaData->name." has no shefId.");
+   print($stnTriplet." ".$metaData->name." has no shefId.\n");
  }
  else{print("houston we have a problem; failure with ".$stnTriplet." .\n");}
  $stnObjects[] = $stnObj;
@@ -80,12 +62,13 @@ $mostRecent->type = "FeatureCollection";
 $mostRecent->features = array();
 
 
+/*
 $shefData = fopen(DATA_DIR.'tippingBucketShef.txt','w');
 //fwrite($shefData,"SXAK58 PACR ".substr($yymmddhhii,4,6)."\nRR3ACR\n");
 fwrite($shefData,"SRAK58 PACR ".substr($yymmddhhii,4,6)."\nACRRR3ACR\n");
 fwrite($shefData,"DATA REPORT FROM CSV INGEST \n\n");
 fwrite($shefData,":APRFC SNOTEL web service ingest from NRCS via local process\n");
-
+*/
 $yymmddhhii = date('ymdHi');
 foreach($stnObjects as $stn){
  $beginDate = $yesterday; //this is for the case that ob is brand new, and not in the most recent doc, or there is no json doc
@@ -99,14 +82,23 @@ foreach($stnObjects as $stn){
    }
   }
  }
- 
  //convert dates to local standard time
  $diffFromUtc = (float)$stn->timeZone;
  $beginDateLocal = date('Y-m-d H:i',strtotime('+'.$diffFromUtc.' hours',strtotime($beginDate)));
  $todayLocal = date('Y-m-d H:i',strtotime('+'.$diffFromUtc.' hours',strtotime($today)));
+ //set the rest of the fields
+ $stn->beginDate = $beginDate;
+ $stn->beginDateLocal = $beginDateLocal;
+ $stn->todayLocal = $todayLocal;
+ $stn->diffFromUtc = $diffFromUtc;
+ //set request - ordinal 2 for tipping bucket
+ $stn->precReq = array('stationTriplets' => $stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $beginDateLocal, 'endDate' => $todayLocal);
+}
+
+foreach($stnObjects as $stn){
  
 //ordinal 2 for tipping bucket
- $precReq = array('stationTriplets' => $stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $beginDateLocal, 'endDate' => $todayLocal);
+ //$precReq = array('stationTriplets' => $stn->stationTriplet, 'elementCd' => 'PREC', 'ordinal' => 2, 'beginDate' => $beginDateLocal, 'endDate' => $todayLocal);
  $precResp = $soapclient->getHourlyData($precReq);
  //print_r($stn->stationTriplet." ");
  if (isset($precResp->return->values)){
@@ -119,10 +111,10 @@ foreach($stnObjects as $stn){
   foreach($precResp->return->values as $ob){
    if (isset($ob->value)){
     //convert to Z time
-    $shefDate = date('Y-m-d H:i:s',strtotime('-'.$diffFromUtc.' hours',strtotime($ob->dateTime)));
+    $shefDate = date('Y-m-d H:i:s',strtotime('-'.$stn->diffFromUtc.' hours',strtotime($ob->dateTime)));
     $shefDateFormatted = date('ymdHi',strtotime($shefDate));
     //make sure this is actually new data... nrcs web service seems to give extra hours
-    if (strtotime($shefDate) > strtotime($beginDate)){
+    if (strtotime($shefDate) > strtotime($stn->beginDate)){
      $newData = true; //we have at least one new piece of data
      $shefString = ".A ".$stn->shefId." ".substr($shefDateFormatted,0,6)." Z DH".substr($shefDateFormatted,6,4)."/DC".$yymmddhhii."/PCIR3 ".$ob->value."\n";
      fwrite($shefData, $shefString);
