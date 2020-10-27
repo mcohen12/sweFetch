@@ -29,7 +29,8 @@ $newData = false; //flag to determine whether to send new file
 $soapclient = new SoapClient('http://www.wcc.nrcs.usda.gov/awdbWebService/services?WSDL', array('connection_timeout'=>120, 'exceptions' => 0));
 
 //SNTL is snotel... only have SNTL for AK... there is SNOW for AK and BC... not sure what there is for YT
-$getStnsParams = array('stateCds' => array('AK','BC','YT'), 'networkCds' =>'SNTL', 'logicalAnd' => true, 'elementCd' => 'PREC', 'ordinals'=>'2'); //this gives the station triplets of the stations that are SNTL, and have precipitation...
+//SNTLT is snolite. I think the only one is 1264: horsepasture -MM
+$getStnsParams = array('stateCds' => array('AK','BC','YT'), 'networkCds' => array('SNTL','SNTLT'), 'logicalAnd' => true, 'elementCd' => 'PREC', 'ordinals'=>'2'); //this gives the station triplets of the stations that are SNTL, and have precipitation...
 $stnResp = $soapclient->getStations($getStnsParams);
 if(is_soap_fault($stnResp)){
  print("error connecting to server for getStations. Retrying...\n");
